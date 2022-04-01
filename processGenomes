@@ -246,7 +246,7 @@ while(my $curgenomeline= <$genomedb>) {
 					print localtime() . ": $curgenomeName : END reciprocal blast.\n";
 				} else { print localtime() . ": SKIP blast temporary files already exists. Delete $blastG2REF to rebuild.\n" }
 				print localtime() . ": $curgenomeName : START Building ortholog database.\n";
-				system("$conservatoryDir/scripts/buildOrthologDB --conservatoryDirectory $conservatoryDir --genome $curgenomeName");
+				system("$conservatoryDir/scripts/buildOrthologDB --conservatoryDirectory $conservatoryDir --genome $curgenomeName >>buildOrthologDB.log 2>&1 ");
 				print localtime() . ": $curgenomeName : END Building ortholog database.\n";
 			} 
 		} else { print localtime(). ": SKIP Ortholog database already exists (use --force-orthology to rebuild)\n"; }
