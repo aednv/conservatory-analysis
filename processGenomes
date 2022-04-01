@@ -328,9 +328,9 @@ while(my $curgenomeline= <$genomedb>) {
 					} else { print localtime() . ": SKIP blast temporary files already exists. Delete $blastG2REF to rebuild.\n" }
 					print localtime() . ": $curgenomeName : START Building ortholog database.\n";
 					if($global) {
-						system("perl $conservatoryDir/scripts/buildOrthologDB --conservatoryDirectory $conservatoryDir --genome-database $genomeDatabaseFileName --genome $curgenomeName --reference $curgenomeReference");
+						system("perl $conservatoryDir/scripts/buildOrthologDB --conservatoryDirectory $conservatoryDir --genome-database $genomeDatabaseFileName --genome $curgenomeName --reference $curgenomeReference >>buildOrthologDB.log 2>$1 ");
 					} else {
-						system("perl $conservatoryDir/scripts/buildOrthologDB --conservatoryDirectory $conservatoryDir --genome-database $genomeDatabaseFileName --genome $curgenomeName");
+						system("perl $conservatoryDir/scripts/buildOrthologDB --conservatoryDirectory $conservatoryDir --genome-database $genomeDatabaseFileName --genome $curgenomeName >>buildOrthologDB.log 2>&1 ");
 					}
 					print localtime() . ": $curgenomeName : END Building ortholog database.\n";
 				} 
