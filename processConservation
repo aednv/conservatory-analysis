@@ -129,7 +129,7 @@ while(my $curgenomeline= <$genomedb>) {
 						if($force) { $alignmentParams .= " --force"; }
 						if($skipAlignment) { $alignmentParams .= " --skip-alignment"; }
 						if($skipConservation) { $alignmentParams .= " --skip-conservation"; }
-						system("perl $conservatoryDir/scripts/buildConservationForFamily$version $alignmentParams");
+						system("perl $conservatoryDir/scripts/buildConservationForFamily$version $alignmentParams >>buildConservation.log 2>&1 ");
 						exit;
 					} else {
 						$threadPids[$placeForProcess] = $forkChildPid;
