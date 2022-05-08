@@ -102,6 +102,8 @@ while(my $curgenomeline= <$genomedb>) {
 		### Start threads
 		if(!($skipAlignment && $skipConservation)) {
 			
+			#my @alignmentThreads = map { threads->new(\&processAlignmentThread, $_) } 1 .. $threads;
+			#$_->join for @alignmentThreads;
 			open(my $geneListFile, "<", $geneListFileName);
 			while(my $geneline = <$geneListFile>) {
 					chomp($geneline);
@@ -129,7 +131,9 @@ while(my $curgenomeline= <$genomedb>) {
 						if($force) { $alignmentParams .= " --force"; }
 						if($skipAlignment) { $alignmentParams .= " --skip-alignment"; }
 						if($skipConservation) { $alignmentParams .= " --skip-conservation"; }
-						system("perl $conservatoryDir/scripts/buildConservationForFamily$version $alignmentParams >>buildConservation.log 2>&1 ");
+						if($verbose) { $alignmentParams .= " --verbose"; }
+						#print "$conservatoryDir/scripts/buildConservationForFamily$version $alignmentParams\n";
+						system("$conservatoryDir/scripts/buildConservationForFamily$version $alignmentParams >>buildConservation.log 2>&1 ");
 						exit;
 					} else {
 						$threadPids[$placeForProcess] = $forkChildPid;
@@ -166,15 +170,14 @@ while(my $curgenomeline= <$genomedb>) {
 		system("for a in $conservationDir/$family/*.csv; do cat \$a >> $conservationDir/$family.csv; done");
 		system("for a in $conservationDir/$family/*.bed; do cat \$a | sed 's/ /\t/g' >> $conservationDir/$family.bed; done");
 		system("for a in $alignmentDir/$family/*.map.txt; do cat \$a >> $alignmentDir/$family.map.txt; done");
-	
+		
 		# sort files
 		system("sort -t',' -k1,1 -k7,7n -o $conservationDir/$family.csv $conservationDir/$family.csv");
 		system("sort -k1,1 -k2,2n -u -o $conservationDir/$family.bed $conservationDir/$family.bed");
 		system("sort -k1,1 -k2,2nr -u -o $alignmentDir/$family.map.txt $alignmentDir/$family.map.txt");
 
 		# Make nice output files. BW for the phylop track and GFF for the CNS
-		system("bedGraphToBigWig $conservationDir/$family.bed $genomesDir/$curgenomeFamily/$curgenomeReference.chrom.size $conservationDir/$family.bw");
-		system("perl $conservatoryDir/scripts/buildConCNS --family  $family --format GFF --CNSfile $conservationDir/$family.csv");
+		system("$conservatoryDir/scripts/bedGraphToBigWig $conservationDir/$family.bed $genomesDir/$curgenomeFamily/$curgenomeReference.chrom.size $conservationDir/$family.bw");
 		print localtime() . ": END data merge and sort.\n";		
 
 		print localtime() . ": END processing conservation for $family (reference genome $curgenomeName)\n";
