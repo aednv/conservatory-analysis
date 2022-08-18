@@ -96,6 +96,7 @@ otherRefGenesList = extractSameRefGenes(myGeneID, myTreeDataframe)
 
 #step 3: cycle through each reference gene, for each gene checking which orthologs were included in the analysis (falsePosCheck) and which CNS regions are conserved.
 for refGene in otherRefGenesList:
+    refGene = refGene[0]
     print("Processing " + refGene)
     allOrthologsChecked = falsePosCheck(refGene)
     myTreeDataframe = dataframeMerge(allOrthologsChecked, myTreeDataframe) #merge all orthologs checked
