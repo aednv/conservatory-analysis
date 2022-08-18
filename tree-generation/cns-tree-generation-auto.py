@@ -1,97 +1,110 @@
 #cns-tree-generation-auto.py, Amber, 8/18/2022
 #this script combines all of the python and bash scripts in Part2 of ramosa3-tree-generation.ipynb into a single python file.
 #this script should be reproducable for mapping different cns conservation onto different gene trees
+#note: load the python/3.5.0 module and the samtools/1.9 module before running this
 
-#set up
 import os
 import sys
 import pandas as pd
 from numpy import loadtxt
 import re
+import subprocess
 
 #read arguments
 if (len(sys.argv) != 2):
     print("Expected 1 input, got ", len(sys.argv)-1)
-gene = sys.argv[1]
-
-#load samtools from command line
-os.system("module load samtools/1.9")
+myGeneID = sys.argv[1]
 
 #check that required files are present
-os.path.exists('./combinedCNS.csv') #all of the maize CNSs from conservatory/CNS/ concatenated together with cat
-os.path.exists('./Poaceae.bam') #the final conserved ortholog alignment file from conservatory/alignments/
-os.path.exists('./Poaceae.bam.bai') #the index file for the above from conservatory/alignments/
-os.path.exists('./all.orthologs.txt') #all the ortholog.csv files from conservatory/genomes/ concatenated together
-os.path.exists('./'+ gene + 'TreeGenes.txt') #TODO the list of genes from your gene tree of interest, change to be based on geneID
+if (os.path.exists('./combinedCNS.csv') == False): #combinedCNS.csv: All of the maize CNSs from conservatory/CNS/ concatenated together with cat
+    print("Missing 'combinedCNS.csv'")
+    exit()
+if (os.path.exists('./Poaceae.bam') == False): #the final conserved ortholog alignment file from conservatory/alignments/
+    print("Missing 'Poaceae.bam'")
+    exit()
+if (os.path.exists('./Poaceae.bam.bai') == False): #the index file for the above from conservatory/alignments/
+    print("Missing 'Poaceae.bam.bai'")
+    exit()
+if (os.path.exists('./all.orthologs.csv') == False): #all the ortholog.csv files from conservatory/genomes/ concatenated together
+    print("Missing 'all.orthologs.csv'")
+    exit()
+if (os.path.exists('./' + myGeneID + '_TreeGenes.txt') == False): #the list of genes from your gene tree of interest
+    print("Missing " + myGeneID + "_TreeGenes.txt")
+    exit()
 
+#functions
 
-def generateDataframe(myGeneID):
-    df = pd.read_csv('ra3TreeGeneList2.txt', header=None).drop_duplicates() #read in and remove duplicates
-    df.rename(columns={0:'ra3_tree_genes'}, inplace=True)
+#generateDataframe(gene) makes a new pandas dataframe with the genes in <gene>_TreeGenes.txt as the first column. Input is the geneID. It returns the new dataframe.
+def generateDataframe(gene):
+    df = pd.read_csv(gene + '_TreeGenes.txt', header=None).drop_duplicates() #read in and remove duplicates
+    df.rename(columns={0:'tree_genes'}, inplace=True)
     df = df.reset_index(drop=True)
     return df
 
+#lines_that_contain() is a helper function for extractAlignments(). It only returns lines in the filepath (fp) that contain the search string (string).
 def lines_that_contain(string, fp):
     return [line for line in fp if string in line]
 
-#look up myGeneID in the combinedCNS.csv, and find all of the CNSs for that gene.
-def extractAlignments(myGeneID):
+#extractAlignments(gene) takes a gene ID string as input. It looks up the gene in the combinedCNS.csv, and finds all of the CNSs for that gene.
+#It creates a cnsID from the csv file by combining the geneID[0], the relative start position[1], the relative end position[2], the chromosome number[5], the reference base pair start position[6], and the ref base pair end position[7].
+#for each CNS, samtools creates a file named <cnsID>.txt that has every ortholog alignment in that region from the bam file.
+#It also outputs a list, cnsIDs, that has every cnsID for the input gene.
+def extractAlignments(gene):
     cnsIDs = []
     total_count = 0
     with open("combinedCNS.csv", "r") as fp:
-        for line in lines_that_contain(myGeneID, fp):
+        for line in lines_that_contain(gene, fp):
             lineArray = line.split(",")
             cnsID = str(lineArray[0]) + "_" + str(lineArray[1]) + "_" + str(lineArray[2]) + "_" + str(lineArray[5]) + "_" + str(lineArray[6]) + "_" + str(lineArray[7]) #convert CNS line into cnsID
             print(cnsID)
             cnsIDs.append(cnsID)
             #use samtools to extract alignments to a temp file with cnsID as name
-            os.system("samtools view Poaceae.bam " + str(lineArray[5]) + ":" + str(lineArray[6]) + "-" + str(lineArray[7]) + " | awk '{print $1}' | awk -F: '{print $3}' > " + cnsID + ".txt")
+            samtoolsCmd = str("samtools view Poaceae.bam " + lineArray[5] + ":" + lineArray[6] + "-" + lineArray[7]+ " | awk '{print $1}' | awk -F: '{print $3}' > tmp/" + cnsID + ".txt")
+            subprocess.call(samtoolsCmd, shell=True)
             total_count += 1
-    print(str(len(cnsIDs)) + " CNS ortholog alignment files generated for " + str(myGeneID))
+    print(str(len(cnsIDs)) + " CNS ortholog alignment files generated for " + str(gene))
     return cnsIDs
 
+#extractSameRefGenes(gene) finds all the other genes in the tree dataframe (df) from the same reference genome as (gene) by using the first 3 chars of the gene and returns them as a list.
+def extractSameRefGenes(gene, df):
+    tempDf = df[df['tree_genes'].str.contains(gene[0:3])]
+    otherRefGenes = tempDf.values.tolist()
+    return otherRefGenes
 
-def dataframeMerge(myGeneID, newColName):
-    geneList = loadtxt(str(newColName + ".txt"), comments="#", delimiter="/n", unpack=False, dtype="str")
-    df[str(myGeneID + '_includedInAnalysis')]=df['ra3_tree_genes'].str.contains('|'.join(map(re.escape, geneList)))
+#dataframeMerge(geneListName, df) makes a new column in the specified dataframe (df), comparing the ortholog genes in <geneListName>.txt to the first column of the df which has all the tree genes.
+#The new df column will be named the same as geneListName. <geneListName>.txt is either a list of all checked orthologs (generated by falsePosCheck()) or a CNS orthologs file (generated by extractAlignments()).
+#returns the updated dataframe
+def dataframeMerge(geneListName, df):
+    newGenes = loadtxt(str("tmp/" + geneListName + ".txt"), comments="#", delimiter="/n", unpack=False, dtype="str")
+    df[str(geneListName)]=df['tree_genes'].str.contains('|'.join(map(re.escape, newGenes)))
+    updatedDf = df
+    return updatedDf
 
-def falsePosCheck(myGeneID):
-    os.system("grep " + myGeneID + " all.orthologs.csv | awk -F, '{print $1}' > " + myGeneID + ".orthologs.txt")
-    orthoFileName = myGeneID + ".orthologs"
-    dataframeMerge(myGeneID, orthoFileName)
+#falsePosCheck(gene) extracts all of the orthologs for (gene) included in the conservatory analysis and saves them in a new file <gene>.orthologs.txt in the tmp directory. It gets all of the orthologs from the all.orthologs.csv file.
+#it returns the orthoFileName, to be used with dataframeMerge().
+def falsePosCheck(gene):
+    subprocess.call("grep " + gene + " all.orthologs.csv | awk -F, '{print $1}' > tmp/" + gene + ".orthologs.txt", shell=True)
+    orthoFileName = gene + ".orthologs"
+    return orthoFileName
 
-def importCNSs(myGeneID, cnsIDs):
-    for cns in cnsIDs:
-        dataframeMerge(myGeneID, cns)
-
-def extractSameRefGenes(myGeneID):
-    sameRefGenes = df['ra3_tree_genes'].str.contains(myGeneID[0:5])
-    return sameRefGenes
-
-
-#step 5: identify other orthologs from the same refrence genome on the tree. Repeat and add that data to dataframe as well.
-
-
-#step 6: save as a csv file for import into R for graphing
-def saveCSV():
-    df.to_csv(myGeneID + "_conservedCNS.csv")
-
-
-#~~~
+#~~~~~~~~~~~~~~~~~~
 #step 1: make a dataframe with all the tree genes
-df = generateDataframe(gene)
+myTreeDataframe = generateDataframe(myGeneID)
 
-#step 5: identify other orthologs from the same refrence genome on the tree. Repeat and add that data to dataframe as well.
-sameRefGeneList = extractSameRefGenes(gene)
+#step 2: identify other orthologs from the same reference genome on the tree.
+otherRefGenesList = extractSameRefGenes(myGeneID, myTreeDataframe)
 
-for gene in sameRefGeneList:
-    cnsIDList = extractAlignments(gene)
-    falsePosCheck(gene)
-    importCNSs(gene, cnsIDList)
-saveCSV(gene)
+#step 3: cycle through each reference gene, for each gene checking which orthologs were included in the analysis (falsePosCheck) and which CNS regions are conserved.
+for refGene in otherRefGenesList:
+    print("Processing " + refGene)
+    allOrthologsChecked = falsePosCheck(refGene)
+    myTreeDataframe = dataframeMerge(allOrthologsChecked, myTreeDataframe) #merge all orthologs checked
+    cnsIDList = extractAlignments(refGene) #process all CNS regions for gene
+    for cns in cnsIDList:
+        myTreeDataframe = dataframeMerge(cns, myTreeDataframe)
 
-
-
+#save final dataframe as csv file for graphing in R
+myTreeDataframe.to_csv(myGeneID + "_conservedCNSTable.csv")
 
 
 
