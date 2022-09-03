@@ -45,6 +45,5 @@ If you are not using the MGHPCC cluster, you will have to modify a few things to
 - R-phytools
 - R-codetools
 - R-colorbrewer
-Unix tools used
-- dos2unix, grep, awk, sed
+- Unix tools used : dos2unix, grep, awk, sed
 
