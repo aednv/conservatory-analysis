@@ -1,8 +1,10 @@
 ## CNS Tree Analysis: Map conserved non-coding regions onto gene trees
 This nextflow pipeline builds a gene tree using the conservatory proteins database and maps all conserved CNS regions onto the tree for your gene of interest. 
 
-### To Run: 
-`bsub < nextflow.sh <fasta_path> <outgroup_name> <reference_gene>` 
+![Example output](example_output.jpg)
+
+### To Run (on MGHPCC): 
+`bsub -q long -o nextflow_job.out -e nextflow_job.err -W 30:00 "sh nextflow.sh <pathToFasta> <outgroup> <ref_gene>"` 
 
 Submit the nextflow.sh script to the cluster with three required arguments, (1) the path of your fasta with the starting protein sequences, (2) the name of your outgroup gene ID, as annotated in the conservatory protein database, and (3) your reference gene ID, as annotated in the conservatory protein database. This is the gene you want to check for CNSs.
 
@@ -13,13 +15,13 @@ To check the progress of the pipeline, view the log using `cat nextflow_job.out`
 
 ### Optional arguments:
 
-`bsub < nextflow.sh <fasta_path> <outgroup_name> <reference_gene> <options>`
+`bsub -q long -o nextflow_job.out -e nextflow_job.err -W 30:00 "sh nextflow.sh <pathToFasta> <outgroup> <ref_gene> <options>"`
 
-Resume your previous run if it was interrupted  `-resume true`  
-Don't search for new genes, just use input fasta as the tree genes `-no_search true`   
-Output a colorful final graph instead of the default black and white `-colorful true`  
+Resume your previous run if it was interrupted (default false)  `-r true`  
+Don't search for new genes, just use input fasta as the tree genes (default false) `-n true`   
+Output a colorful final graph instead of the default black and white (default false) `-c true`  
 
-example:  `bsub < nextflow.sh ./myfasta.fa Aco0001234 Zm000eb1234 -resume true -no_search true -colorful true`
+example:  `bsub -q long -o nextflow_job.out -e nextflow_job.err -W 30:00 "sh nextflow.sh ./myfasta.fa Aco0001234 Zm000eb1234 -r true -n true -c true"`
 
 ### How it works:
 Steps:
@@ -47,3 +49,9 @@ If you are not using the MGHPCC cluster, you will have to modify a few things to
 - R-colorbrewer
 - Unix tools used : dos2unix, grep, awk, sed
 
+### Troubleshooting cropped graphs:
+If you are plotting many CNS regions, the output graph will not fit on the pdf output. I havn't found a way to fix this yet in R, but you can get around it in Adobe Illustator.
+1) Open your pdf in Illustator.
+2) Select the edge of the whitespace, right click, and select 'release clipping mask'. The full graph will now be visible.
+3) On the top menu bar, go to Object -> Artboards -> Fit to Artboard Bounds. The whitespace will expand to fit the full graph.
+4) Export
