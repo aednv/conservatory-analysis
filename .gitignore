@@ -1,0 +1,7 @@
+*.err
+*.out
+work/
+phytoolsConda/
+.nextflow*
+.nextflow/
+
