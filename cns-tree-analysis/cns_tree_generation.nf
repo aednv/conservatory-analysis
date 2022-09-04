@@ -4,29 +4,30 @@
 nextflow.enable.dsl=2
 
 //inputs
-
-//discover new homologous genes and expand the tree. If false, the gene list provided in params.startGenes will be used directly to build the tree
-params.discoverGenes = "TRUE"
-
+//don't discover new homologous genes and expand the tree. If true, the gene list provided in params.startGenes will be used directly to build the tree
+params.noSearch = "false"
+println params.noSearch
 //path to fasta file of starting genes with their protein sequences. One of these should be an outgroup gene
 params.startGenes = "./gene_data/ra3_start_genes.fa"
-
+println params.startGenes
 //name of the outgroup gene, as annotated in the protein database
 params.outgroup = "Aco009575"
-
+println params.outgroup
 //path to the protein database file
 params.dbPath = "/project/uma_madelaine_bartlett/AmberDeneve/conservatory/conservatory/genomes/Poaceae/Poaceae.proteins.combined.fa"
-
 //path to the cns mapping resouce folder
 params.cnsPath = file("./gene_data/cns_mapping_resources/")
-
 //gene id of your main gene of interest, as annotated in the protein database
-//maize ramosa3 (ra3)
 params.mainGene = "Zm00001eb327910_P002"
-
 //path to phytools conda enviornment
 params.phytoolsEnv  = file("./phytoolsConda")
+//use colorful graph option (default is white and grey)
+params.colorful = "false"
+println params.colorful
 
+/*
+ * Processes
+ */
 process findGenesRoundOne {
 	tag {"findGenesRoundOne $startGenes"}
 	executor 'lsf'
@@ -51,6 +52,7 @@ process findGenesRoundOne {
 	module load hmmer/3.1b2
 	module load samtools/1.9
 	#align startGenes
+	dos2unix $startGenes
 	mafft-linsi $startGenes > ${startGenes}.aln
 	#make profile hidden markov model
 	hmmbuild -o ${params.mainGene}.summary.roundOne.txt ${params.mainGene}.roundOne.hmm ${startGenes}.aln
@@ -186,7 +188,7 @@ process graphCnsTree {
 	"""
 	module load anaconda3/2019.03
 	source activate $params.phytoolsEnv
-	graph-cns-tree.R $tree $cnsTable $params.outgroup $params.mainGene
+	graph-cns-tree.R $tree $cnsTable $params.outgroup $params.mainGene $params.colorful
 	"""
 }
 	
@@ -196,9 +198,9 @@ process graphCnsTree {
 workflow {
 	//create channel
 	startGenes_ch = Channel.fromPath( params.startGenes, checkIfExists: true )
-	
+	 
 	//build tree and map CNS data
-	if( params.discoverGenes == "TRUE" ) {
+	if( params.noSearch == false ) {
 		//discover homologous genes
 		findGenesRoundOne( startGenes_ch )
 		findGenesRoundTwo( findGenesRoundOne.out.genes )
@@ -206,13 +208,13 @@ workflow {
 		buildTree( findGenesRoundTwo.out.genesFinal )
 		mapCnsData( buildTree.out.treeGenesTrimmed )
 	}
-	else if( params.discoverGenes == "FALSE" ) {
+	else if( params.noSearch == true ) {
 		//build gene tree
 		buildTree ( startGenes_ch )
 		mapCnsData( buildTree.out.treeGenesTrimmed )
 	}
 	else {
-		error "Invalid discoverGenes parameter."
+		error "Invalid noSearch parameter. Use false or true (lowercase)."
 	}
 	
 	//graph in R
