@@ -8,19 +8,19 @@ nextflow.enable.dsl=2
 params.noSearch = "false"
 println params.noSearch
 //path to fasta file of starting genes with their protein sequences. One of these should be an outgroup gene
-params.startGenes = "./gene_data/ra3_start_genes.fa"
+params.startGenes = ""
 println params.startGenes
 //name of the outgroup gene, as annotated in the protein database
-params.outgroup = "Aco009575"
+params.outgroup = ""
 println params.outgroup
 //path to the protein database file
-params.dbPath = "/project/uma_madelaine_bartlett/AmberDeneve/conservatory/conservatory/genomes/Poaceae/Poaceae.proteins.combined.fa"
+params.dbPath = file("./gene_data/Poaceae.proteins.combined.fa")
 //path to the cns mapping resouce folder
-params.cnsPath = file("./gene_data/cns_mapping_resources/")
+params.cnsPath = file("./gene_data/CNS_Mapping/")
 //gene id of your main gene of interest, as annotated in the protein database
-params.mainGene = "Zm00001eb327910_P002"
+params.mainGene = ""
 //path to phytools conda enviornment
-params.phytoolsEnv  = file("./phytoolsConda")
+params.phytoolsEnv  = "/project/uma_madelaine_bartlett/CNS_Discovery/Conservatory/conservatory-cns-tree-analysis/phytoolsConda"
 //use colorful graph option (default is white and grey)
 params.colorful = "false"
 println params.colorful
@@ -52,7 +52,7 @@ process findGenesRoundOne {
 	module load hmmer/3.1b2
 	module load samtools/1.9
 	#align startGenes
-	dos2unix $startGenes
+	#dos2unix $startGenes
 	mafft-linsi $startGenes > ${startGenes}.aln
 	#make profile hidden markov model
 	hmmbuild -o ${params.mainGene}.summary.roundOne.txt ${params.mainGene}.roundOne.hmm ${startGenes}.aln
