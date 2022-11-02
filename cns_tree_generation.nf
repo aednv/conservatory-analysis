@@ -3,89 +3,31 @@
 //syntax version
 nextflow.enable.dsl=2
 
-//Inputs
-
-//params.mainGene(string) - Required user input - Gene ID of your main gene of interest, as annotated in the protein database.
-params.mainGene = ""
-
-//params.outgroup(string) - Required user input - Name of the outgroup gene, as annotated in the protein database.
-params.outgroup = ""
-
-//params.noSearch(string = "true"/"false") - If false (default), search for new genes. If true, the gene list provided in params.startGenes will be used directly to build the tree.
+//inputs
+//don't discover new homologous genes and expand the tree. If true, the gene list provided in params.startGenes will be used directly to build the tree
 params.noSearch = "false"
-
-//params.startGenes(string) - Path to fasta file of starting genes with their protein sequences. One of these sequences should be the outgroup gene. This parameter is only used if params.noSearch is set to true.
+println params.noSearch
+//path to fasta file of starting genes with their protein sequences. One of these should be an outgroup gene
 params.startGenes = ""
-
-//params.dbPath(string) - Path to the protein database directory.
-params.dbPath = file("./gene_data/protein_db/")
-
-//params.cnsPath(string) - Path to the cns mapping resource folder. Contains the CNS map files (All.merged.cns.csv and All.merged.cns.map).
-params.cnsPath = file("./gene_data/cns_mapping_resources/")
-
-//params.phytoolsEnv(string) - Path to phytools conda enviornment.
-params.phytoolsEnv  = file("./phytoolsConda")
-
-//params.colorful(string = "true"/"false") - If false (default), makes a greyscale graph. If true, makes a colorful graph.
+println params.startGenes
+//name of the outgroup gene, as annotated in the protein database
+params.outgroup = ""
+println params.outgroup
+//path to the protein database file
+params.dbPath = file("./gene_data/Poaceae.proteins.combined.fa")
+//path to the cns mapping resouce folder
+params.cnsPath = file("./gene_data/CNS_Mapping/")
+//gene id of your main gene of interest, as annotated in the protein database
+params.mainGene = ""
+//path to phytools conda enviornment
+params.phytoolsEnv  = "/project/uma_madelaine_bartlett/CNS_Discovery/Conservatory/conservatory-cns-tree-analysis/phytoolsConda"
+//use colorful graph option (default is white and grey)
 params.colorful = "false"
+println params.colorful
 
 /*
  * Processes
  */
-
-//scaleGenomeInput searches the CNS map files and makes a list of each homologous gene with conserved CNS regions. It records which family the species is from and adds that to
-//the list of family genomes to be included for the downstream hmm search. The inputs are params.mainGene, and the outputs are (1) a text file with the list of homologous genes, newline seperated and 
-//(2) a list of genome directories to be used in the hmm analysis.  
-process scaleGenomeInput {
-	tag {"scaleGenomeInput $mainGene"}
-	executor 'lsf'
-	queue 'short'
-	cpus 1
-	time '1h'
-	
-	publishDir "gene_data", mode: 'copy'
-	
-	input:
-		val mainGene
-	
-	output:
-		path(".txt."), emit : startGenes
-		val famList, emit : familyList
-	
-	"""
-	#verify that input gene has conserved CNS regions (that it is in the csv file)
-	#check all merged cns. for each matching line in ColG
-		#get all matching ortholog genes for every CNS region in borth the merged.map and family.map
-		#for any CNS that are not family level, use the genome db csv to link the species to its Family
-		#add that family to the family list
-	#remove any duplicates in the gene list and the family list
-	
-	"""
-}
-
-//generateFasta builds a fasta file of protein sequences. Inputs: (1) path to a text file list of genes, newline seperated. (2) list of directories making up the protein database.
-process generateFasta {
-	tag {"generate Fasta $startGenes"}
-	executor 'lsf'
-	queue 'short'
-	cpus 1
-	time '1h'
-	
-	publishDir "gene_data", mode: 'copy'
-	
-	input:
-		path startGenes
-		val familyList
-	
-	output:
-		path("*.fa"), emit : startProteinSeqs
-	
-	"""
-	#build a fasta from the gene ids
-	#modify from code below
-	"""
-}
-
 process findGenesRoundOne {
 	tag {"findGenesRoundOne $startGenes"}
 	executor 'lsf'
@@ -110,7 +52,7 @@ process findGenesRoundOne {
 	module load hmmer/3.1b2
 	module load samtools/1.9
 	#align startGenes
-	dos2unix $startGenes
+	#dos2unix $startGenes
 	mafft-linsi $startGenes > ${startGenes}.aln
 	#make profile hidden markov model
 	hmmbuild -o ${params.mainGene}.summary.roundOne.txt ${params.mainGene}.roundOne.hmm ${startGenes}.aln
@@ -254,33 +196,21 @@ process graphCnsTree {
  * Workflow
  */
 workflow {
-	//!!modifications for deep cns searching
-	
-	//create channel from main reference gene input
-	if( params.mainGene == "" ) {
-		error "No reference gene input. <params.mainGene> is empty."
-	}
-	mainGene_ch = Channel.from( params.mainGene )
+	//create channel
+	startGenes_ch = Channel.fromPath( params.startGenes, checkIfExists: true )
 	 
-	//automatically search for genes, build tree, and map CNSs. (default)
+	//build tree and map CNS data
 	if( params.noSearch == false ) {
-		//scale genomes to be included in the hmm search, and generate homologous gene list
-		scaleGenomeInput ( mainGene_ch )
-		//build a protein fasta file for homologous gene list
-		generateFasta ( scaleGenomeInput.out.startGenes, scaleGenomeInput.out.familyList )
-		//discover more homologous genes to expand tree
-		findGenesRoundOne( generateFasta.out.startGenes, scaleGenomeInput.out.familyList )
-		findGenesRoundTwo( findGenesRoundOne.out.genes, scaleGenomeInput.out.familyList )
+		//discover homologous genes
+		findGenesRoundOne( startGenes_ch )
+		findGenesRoundTwo( findGenesRoundOne.out.genes )
 		//build gene tree
 		buildTree( findGenesRoundTwo.out.genesFinal )
-		//!!map CNS data chould use the map file now, not the bam file
 		mapCnsData( buildTree.out.treeGenesTrimmed )
 	}
-	//build tree from user input protein fasta and map CNSs.
 	else if( params.noSearch == true ) {
 		//build gene tree
 		buildTree ( startGenes_ch )
-		//!!use map file, not bam file
 		mapCnsData( buildTree.out.treeGenesTrimmed )
 	}
 	else {
