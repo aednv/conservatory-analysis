@@ -1,56 +1,50 @@
 #!/bin/bash
 
-#BSUB -n 1
-#BSUB -J nextflow_job
-#BSUB -o nextflow_job.out
-#BSUB -e nextflow_job.err
-#BSUB -q long
-#BSUB -W 30:00
-#BSUB -R "span[hosts=1]"
-#BSUB -R "rusage[mem=2000]"
+#SBATCH -c 1
+#SBATCH -p cpu
+#SBATCH --mem=8192
+#SBATCH -t 24:00:00
+#SBATCH -o nextflowJob-%j.out
 
-#To set up R-phytools conda env
+#To set up phytools / cns mapping conda env
 #conda config --set channel_priority strict
-#conda create --prefix ./phytoolsConda -c conda-forge r-base
-#conda activate ./phytoolsConda
+#conda create --prefix ./cnsMappingConda -c conda-forge r-base
+#conda activate ./cnsMappingConda
 #conda install -c conda-forge r-phytools r-codetools r-colorbrewer
 #conda deactivate
 
-#set variables
+#To set up bioinformatics tools conda env
+#conda create --prefix ./bioinfToolsConda -c bioconda samtools mafft raxml-ng hmmer python pandas
+
+#input argument examples
+#FASTA=./gene_data/Zm00001eb007950_startGenes.txt
+#OUTGROUP=Aco003777
+#REF_GENE=Zm00001eb007950
+#PHY_ENV=absolute path to cnsMappingConda
+#BIOINF_ENV=absolute path to bioinfToolsConda
+
+#submit to the cluster
+#OUTGROUP=Aco003777 REF_GENE=Zm00001eb007950 FASTA=./gene_data/Zm00001eb007950_startGenes.txt BIOINF_ENV=/work/pi_mbartlett_umass_edu/AmberDeNeve/conservatory-cns-tree-analysis/bioinfToolsConda PHY_ENV=/work/pi_mbartlett_umass_edu/AmberDeNeve/conservatory-cns-tree-analysis/cnsMappingConda <nextflow.sh sbatch
+
+#optional variables (default false)
 RESUME=false
 NO_SEARCH=false
 COLORFUL=false
 
-#process input
-args=$(getopt --name "$0" --options r:n:c: -- "$@")
-eval set -- "$args"
-
-while [[ $# -gt 0 ]]; do
-	case "$1" in
-		-r) RESUME=$2; shift 2;;
-		-n) NO_SEARCH=$2; shift 2;;
-		-c) COLORFUL=$2; shift 2;;
-		--) shift; break ;;
-	esac
-done
-
-FASTA=$1
-OUTGROUP=$2
-REF_GENE=$3
-
-echo "Your input: fasta path-$1, outgroup-$2, refGene-$3. Optional arguments (default false):  resume-$RESUME, noSearch-$NO_SEARCH, colorful-$COLORFUL"  
+echo "Your input: fasta path-$FASTA, outgroup-$OUTGROUP, refGene-$REF_GENE. Optional arguments (default false):  resume-$RESUME, noSearch-$NO_SEARCH, colorful-$COLORFUL"  
 
 #only submit job if fasta is found
-if [ ! -f $1 ]; then
+if [ ! -f $FASTA ]; then
 	echo "Fasta file not found. Example path ./myfasta.fa"
 	exit
 fi
 
-module load nextflow/20.10.0.5430
+module load nextflow/21.04.3
+
 if [ $RESUME == false ]; then
-	nextflow run cns_tree_generation.nf --startGenes $FASTA --outgroup $OUTGROUP --mainGene $REF_GENE --noSearch $NO_SEARCH --colorful $COLORFUL
+	nextflow run cns_tree_generation.nf --startGenes $FASTA --outgroup $OUTGROUP --mainGene $REF_GENE --noSearch $NO_SEARCH --colorful $COLORFUL --phytoolsEnv $PHY_ENV --bioinfEnv $BIOINF_ENV
 fi
 if [ $RESUME == true ]; then
-	nextflow run cns_tree_generation.nf -resume --startGenes $FASTA --outgroup $OUTGROUP --mainGene $REF_GENE --noSearch $NO_SEARCH --colorful $COLORFUL
+	nextflow run cns_tree_generation.nf -resume --startGenes $FASTA --outgroup $OUTGROUP --mainGene $REF_GENE --noSearch $NO_SEARCH --colorful $COLORFUL --phytoolsEnv $PHY_ENV --bioinfEnv $BIOINF_ENV
 fi
 

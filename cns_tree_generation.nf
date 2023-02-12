@@ -6,34 +6,33 @@ nextflow.enable.dsl=2
 //inputs
 //don't discover new homologous genes and expand the tree. If true, the gene list provided in params.startGenes will be used directly to build the tree
 params.noSearch = "false"
-println params.noSearch
-//path to fasta file of starting genes with their protein sequences. One of these should be an outgroup gene
+//path to fasta file of starting genes with their protein sequences.
 params.startGenes = ""
-println params.startGenes
 //name of the outgroup gene, as annotated in the protein database
 params.outgroup = ""
-println params.outgroup
 //path to the protein database file
-params.dbPath = file("./gene_data/Poaceae.proteins.combined.fa")
+params.dbPath = file("./gene_data/protein_database/all.proteins.fasta")
 //path to the cns mapping resouce folder
-params.cnsPath = file("./gene_data/CNS_Mapping/")
+params.cnsPath = file("./gene_data")
 //gene id of your main gene of interest, as annotated in the protein database
 params.mainGene = ""
-//path to phytools conda enviornment
-params.phytoolsEnv  = "/project/uma_madelaine_bartlett/CNS_Discovery/Conservatory/conservatory-cns-tree-analysis/phytoolsConda"
+//path to phytools/ cns mapping conda environment
+params.phytoolsEnv = ""
+//path to bioinformatics tools conda
+params.bioinfEnv = ""
 //use colorful graph option (default is white and grey)
 params.colorful = "false"
-println params.colorful
 
 /*
  * Processes
  */
 process findGenesRoundOne {
 	tag {"findGenesRoundOne $startGenes"}
-	executor 'lsf'
-	queue 'short'
+	executor 'slurm'
+	queue 'cpu'
 	cpus 1
 	time '2h'
+	memory '1 GB'
 	
 	publishDir "gene_data", mode: 'copy'
 	
@@ -47,12 +46,10 @@ process findGenesRoundOne {
 		path("*.roundOne.txt")
 	
 	"""
-	#load cluster modules
-	module load MAFFT/7.313
-	module load hmmer/3.1b2
-	module load samtools/1.9
+	#load conda env
+	module load anaconda/2022.10
+	conda activate $params.bioinfEnv
 	#align startGenes
-	#dos2unix $startGenes
 	mafft-linsi $startGenes > ${startGenes}.aln
 	#make profile hidden markov model
 	hmmbuild -o ${params.mainGene}.summary.roundOne.txt ${params.mainGene}.roundOne.hmm ${startGenes}.aln
@@ -72,11 +69,12 @@ process findGenesRoundOne {
 
 process findGenesRoundTwo {
 	tag {"findGenesRoundTwo $roundOneGenes"}
-	executor 'lsf'
-	queue 'short'
+	executor 'slurm'
+	queue 'cpu'
 	cpus 1
 	time '2h'
-	
+	memory '1 GB'
+
 	publishDir "gene_data", mode: 'copy'
 	
 	input:
@@ -89,10 +87,9 @@ process findGenesRoundTwo {
 		path("*.roundTwo.txt")
 	
 	"""
-	#load cluster modules
-	module load MAFFT/7.313
-	module load hmmer/3.1b2
-	module load samtools/1.9
+	#load conda env
+	module load anaconda/2022.10
+	conda activate $params.bioinfEnv
 	#align round one genes
 	mafft-linsi $roundOneGenes > ${roundOneGenes}.aln
 	#make profile hidden markov model
@@ -113,9 +110,9 @@ process findGenesRoundTwo {
 
 process buildTree {
 	tag {"buildTree $treeGenes"}
-	executor 'lsf'
-	queue 'long'
-	clusterOptions '-R "rusage[mem=2000]" "span[hosts=1]"'
+	executor 'slurm'
+	queue 'cpu'
+	memory '4 GB'
 	cpus 4
 	time '10h'
 	
@@ -133,21 +130,22 @@ process buildTree {
 	"""
 	#remove any duplicate genes from the fasta input (awk command from https://bioinformatics.stackexchange.com/questions/15647/removing-duplicate-fasta-sequences-based-on-headers-with-bash)
 	awk '/^>/ { f = !(\$0 in a); a[\$0]++ } f' $treeGenes > ${treeGenes}.trimmed
-	#load cluster modules
-	module load raxml-ng/0.9.0
-	module load MAFFT/7.313
+	#load conda env
+	module load anaconda/2022.10
+	conda activate $params.bioinfEnv
 	mafft-linsi ${treeGenes}.trimmed > ${treeGenes}.trimmed.aln
-	singularity exec \$RAXMLNGIMG raxml-ng-mpi --all --msa ${treeGenes}.trimmed.aln --model JTT+G --threads 4 --bs-metric fbp,tbe
+	raxml-ng-mpi --all --msa ${treeGenes}.trimmed.aln --model JTT+G --threads 4 --bs-metric fbp,tbe
 	"""
 }
 
 process mapCnsData {
 	tag {"mapCnsData $treeGenesTrimmed"}
-	executor 'lsf'
-	queue 'short'
+	executor 'slurm'
+	queue 'cpu'
 	cpus 1
 	time '1h'
-	
+	memory '1 GB'
+
 	publishDir "results", mode: 'copy'
 	
 	input:
@@ -158,21 +156,21 @@ process mapCnsData {
 		path("*_TreeGenes.txt")
 	
 	"""
-	module load python3/3.5.0
-	module load samtools/1.9
-	module load python3/3.5.0_packages/pandas/0.18.0
+	#load conda env
+	module load anaconda/2022.10
+	conda activate $params.bioinfEnv
 	#extract just gene names from list
 	cat $treeGenesTrimmed | grep '>' | cut -b 2- > ${params.mainGene}_TreeGenes.txt
-	cns-tree-generation-auto.py  $params.mainGene $params.cnsPath
+	csv-database-cns-tree-generation.py $params.mainGene $params.cnsPath
 	"""
 }
 
 process graphCnsTree {
 	tag {"graphCnsTree $params.mainGene"}
-	executor 'lsf'
-	queue 'short'
+	executor 'slurm'
+	queue 'cpu'
 	cpus 1
-	clusterOptions '-R "rusage[mem=10000]" "span[hosts=1]"'
+	memory '1 GB'
 	time '1h'
 	
 	publishDir "results", mode: 'copy'
@@ -186,8 +184,9 @@ process graphCnsTree {
 	
 	script:
 	"""
-	module load anaconda3/2019.03
-	source activate $params.phytoolsEnv
+	#load conda env
+	module load anaconda/2022.10
+	conda activate $params.phytoolsEnv
 	graph-cns-tree.R $tree $cnsTable $params.outgroup $params.mainGene $params.colorful
 	"""
 }
