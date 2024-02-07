@@ -11,7 +11,7 @@ module load anaconda/2022.10
 conda activate ./../../bioinfToolsConda
 
 #extract just gene names from list
-cat myRefGeneTest.roundTwo.fa.trimmed.aln | grep '>' | cut -b 2- > myGeneTest_TreeGenes.txt
+cat Bradi4g21160.roundTwo.fa.trimmed.aln | grep '>' | cut -b 2- > Bradi4g21160_TreeGenes.txt
 
 #replace with your gene id
-python ../csv-database-cns-tree-generation.py Zm00001eb327910 ../../gene_data
+python ../csv-database-cns-tree-generation.py Bradi4g21160 ../../gene_data

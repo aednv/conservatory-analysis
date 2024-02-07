@@ -11,7 +11,7 @@ params.startGenes = ""
 //name of the outgroup gene, as annotated in the protein database
 params.outgroup = ""
 //path to the protein database file
-params.dbPath = file("./gene_data/protein_database/all.proteins.fasta")
+params.dbPath = file("./gene_data/all.poaceae.proteins.v9")
 //path to the cns mapping resouce folder
 params.cnsPath = file("./gene_data")
 //gene id of your main gene of interest, as annotated in the protein database
@@ -114,7 +114,7 @@ process buildTree {
 	queue 'cpu'
 	memory '4 GB'
 	cpus 4
-	time '10h'
+	time '24h'
 	
 	publishDir "results", mode: 'copy'
 	
@@ -143,8 +143,8 @@ process mapCnsData {
 	executor 'slurm'
 	queue 'cpu'
 	cpus 1
-	time '1h'
-	memory '1 GB'
+	time '10h'
+	memory '2 GB'
 
 	publishDir "results", mode: 'copy'
 	
@@ -154,6 +154,7 @@ process mapCnsData {
 	output:
 		path("*.csv"), emit: cnsTable
 		path("*_TreeGenes.txt")
+		path("*Log.txt")
 	
 	"""
 	#load conda env
@@ -161,7 +162,7 @@ process mapCnsData {
 	conda activate $params.bioinfEnv
 	#extract just gene names from list
 	cat $treeGenesTrimmed | grep '>' | cut -b 2- > ${params.mainGene}_TreeGenes.txt
-	csv-database-cns-tree-generation.py $params.mainGene $params.cnsPath
+	csv-database-cns-tree-generation.py $params.mainGene $params.cnsPath > ${params.mainGene}_treeMappingLog.txt
 	"""
 }
 
@@ -171,7 +172,7 @@ process graphCnsTree {
 	queue 'cpu'
 	cpus 1
 	memory '1 GB'
-	time '1h'
+	time '2h'
 	
 	publishDir "results", mode: 'copy'
 	

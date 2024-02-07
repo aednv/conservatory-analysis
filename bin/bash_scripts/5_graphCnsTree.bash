@@ -11,4 +11,4 @@ module load anaconda/2022.10
 conda activate ./../../cnsMappingConda
 
 #replace with your tree file, cns mapping file, outgroup gene, gene_id, and color preference
-Rscript ../graph-cns-tree.R Zm00001eb327910.bestTree Zm00001eb327910_conservedCNSTable.csv Aco003777 Zm00001eb327910 false
+Rscript ../graph-cns-tree.R Bradi4g21160.roundTwo.fa.trimmed.aln.raxml.supportFBP Bradi4g21160_conservedCNSTable.csv Bradi4g40270 Bradi4g21160 false
