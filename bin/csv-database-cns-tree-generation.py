@@ -23,7 +23,7 @@ if (os.path.exists(mapPath) == False):
 if (os.path.exists('./' + myGeneID + '_TreeGenes.txt') == False): #the list of genes from your gene tree of interest
     print("Missing " + myGeneID + "_TreeGenes.txt")
     exit()
-allOrthologsPath = cnsFilesPath + '/angiospermsOrthologs.csv'
+allOrthologsPath = cnsFilesPath + '/OrtologsOutputGenePairsConV10.1.filtered.csv'
 if (os.path.exists(allOrthologsPath) == False): #all the ortholog.csv files from conservatory/genomes/ concatenated together
     print("Missing 'angiospermsOrthologs.csv'")
     exit()
@@ -73,15 +73,24 @@ def cnsMap(cnsID, df):
 #falsePosCheck(gene) extracts all of the orthologs for (gene) included in the conservatory analysis and saves them in a new file <gene>.orthologs.txt in the tmp directory. It gets all of the orthologs from the all.orthologs.csv file.
 #it returns the orthoFileName, to be used with dataframeMerge().
 def falsePosCheck(gene, df):
-    subprocess.call("grep " + gene + " " + allOrthologsPath + " | awk -F'-' '{print $3}' > " + gene + ".orthologs.txt", shell=True)
-    print("check1")
-    with open(str(gene + ".orthologs.txt")) as data:
-        newGenes = data.read().split('\n')
-    print("check2")
-    newGenes = filter(None, newGenes) #make sure there are no empty strings
-    df[str(falsePosCheck)]=df['tree_genes'].str.contains('|'.join(newGenes))
+    #subprocess.call("grep " + gene + " " + allOrthologsPath + " | awk -F'-' '{print $3}' | awk -F',' '{print $1}' > " + gene + ".orthologs.txt", shell=True)
+    print("falsePos ortholog check")
+    with open(str(allOrthologsPath)) as data:
+        for row_number, line in enumerate(data, start=1):
+            columns = line.strip().split(',', 1)
+            if gene in columns[0]:
+                orthos = columns
+    #reformat orthos into df
+    flattened_ortho_list = []
+    for o in orthos:
+        group = o.split(',')
+        for g in group:
+            single = g.split('|')
+            flattened_ortho_list.extend(single)
+    flattened_ortho_list = [item for item in flattened_ortho_list if item != 'NA']
+    print(len(flattened_ortho_list), " orthologs")
+    df[str(falsePosCheck)]=df['tree_genes'].str.contains('|'.join(flattened_ortho_list))
     updatedDf = df
-    print("check3")
     return updatedDf
 print("checkpint2")
 #~~~~~~~~~~~~~~~~~~
@@ -96,10 +105,10 @@ myCnsIDs = extractCnsIDs(myGeneID)
 print("checkpoint5")
 print(len(myCnsIDs))
 #step 4: cycle through each cns region, checking which CNS regions are conserved
-for id in myCnsIDs:
-    print("Processing " + id)
-    myTreeDataframe = cnsMap(id, myTreeDataframe) #merge all checked
+#for id in myCnsIDs:
+#    print("Processing " + id)
+#    myTreeDataframe = cnsMap(id, myTreeDataframe) #merge all checked
 
 #step 5: save final dataframe as csv file for graphing in R
-myTreeDataframe.to_csv(myGeneID + "_conservedCNSTable.csv")
+#myTreeDataframe.to_csv(myGeneID + "_conservedCNSTable.csv")
 
